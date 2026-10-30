@@ -3,7 +3,6 @@ import sqlite3
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-# import pyautogui
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -17,7 +16,6 @@ app = FastAPI(title="El Puente Universal", description="Sistema Todo-en-Uno")
 def leer_excel():
     """Simula leer un programa viejo basado en Excel."""
     try:
-        # Creamos un Excel de prueba si no existe
         if not os.path.exists("datos_empresa.xlsx"):
             df = pd.DataFrame({"ID": [1, 2], "Producto": ["Laptop", "Mouse"], "Precio": [1000, 20]})
             df.to_excel("datos_empresa.xlsx", index=False)
@@ -56,24 +54,32 @@ def leer_db():
 # ==========================================
 @app.get("/web/scraping")
 def hacer_scraping():
-    """Extrae el título de una página web (ej. Wikipedia)."""
+    """Extrae el título de una página web (ej. Wikipedia) de forma segura."""
     try:
         url = "https://es.wikipedia.org/wiki/Python"
-        respuesta = requests.get(url, timeout=10)
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        respuesta = requests.get(url, headers=headers, timeout=10)
+        respuesta.raise_for_status()
+        
         soup = BeautifulSoup(respuesta.text, 'html.parser')
-        titulo = soup.find('h1').text
-        return {"status": "éxito", "titulo_extraido": titulo, "url": url}
+        # Buscamos el título general de la página (más seguro que el H1)
+        titulo = soup.title.string if soup.title else "No se encontró título"
+        
+        return {"status": "éxito", "titulo_extraido": titulo.strip(), "url": url}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Error en scraping: {str(e)}")
 
 # ==========================================
 # MÓDULO 4: CONECTOR DE ESCRITORIO (RPA)
 # ==========================================
 @app.post("/pc/automatizar")
 def automatizar_pc():
+    """
+    Mueve el ratón y escribe en tu PC. 
+    Solo funciona en local (en la nube dará error controlado).
+    """
     try:
-        # Importamos aquí dentro para que solo falle si se llama en la nube
-        import pyautogui 
+        import pyautogui # Importación local para evitar que falle en Render
         pyautogui.moveTo(500, 500, duration=1)
         pyautogui.write('Hola socio, soy tu bot.', interval=0.05)
         return {"status": "éxito", "mensaje": "El bot controló el teclado y ratón."}
@@ -82,6 +88,9 @@ def automatizar_pc():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# ==========================================
+# RUTA PRINCIPAL (FRONTEND)
+# ==========================================
 @app.get("/")
 def raiz():
     return FileResponse("index_puente.html")
