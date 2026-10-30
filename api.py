@@ -3,7 +3,7 @@ import sqlite3
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-import pyautogui
+# import pyautogui
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -71,15 +71,14 @@ def hacer_scraping():
 # ==========================================
 @app.post("/pc/automatizar")
 def automatizar_pc():
-    """
-    Mueve el ratón y escribe en tu PC. 
-    ¡ADVERTENCIA! Al ejecutarlo, tomará el control de tu ratón por 3 segundos.
-    """
     try:
-        # En un caso real, aquí abrirías un programa y harías clics
+        # Importamos aquí dentro para que solo falle si se llama en la nube
+        import pyautogui 
         pyautogui.moveTo(500, 500, duration=1)
         pyautogui.write('Hola socio, soy tu bot.', interval=0.05)
         return {"status": "éxito", "mensaje": "El bot controló el teclado y ratón."}
+    except ImportError:
+        raise HTTPException(status_code=501, detail="RPA no disponible en la nube (solo local).")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
