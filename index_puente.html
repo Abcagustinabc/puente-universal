@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>El Puente Universal - Dashboard</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --primary: #3b82f6;
+            --success: #10b981;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+        }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: var(--primary); margin-bottom: 5px; }
+        .header p { color: var(--muted); margin: 0; }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            width: 100%;
+            max-width: 900px;
+        }
+        .card {
+            background-color: var(--panel);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+        }
+        .card h3 { margin-top: 0; color: var(--text); border-bottom: 1px solid #334155; padding-bottom: 10px; }
+        .card p { color: var(--muted); font-size: 0.9em; flex-grow: 1; }
+        
+        button {
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            background-color: var(--primary);
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        button:hover { background-color: #2563eb; }
+        .btn-warning { background-color: #f59e0b; }
+        .btn-warning:hover { background-color: #d97706; }
+
+        #consola {
+            width: 100%;
+            max-width: 900px;
+            background-color: #000;
+            color: var(--success);
+            font-family: monospace;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 30px;
+            min-height: 100px;
+            box-sizing: border-box;
+            white-space: pre-wrap;
+            font-size: 14px;
+            border: 1px solid #334155;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>🌉 El Puente Universal</h1>
+        <p>Panel de control para conectar con programas antiguos</p>
+    </div>
+
+    <div class="dashboard">
+        <div class="card">
+            <h3>📊 Módulo Excel</h3>
+            <p>Lee archivos .xlsx del sistema antiguo y los convierte a datos modernos.</p>
+            <button onclick="llamarAPI('/excel/leer', 'GET')">Leer Excel</button>
+        </div>
+
+        <div class="card">
+            <h3>🗄️ Módulo SQL</h3>
+            <p>Consulta la base de datos central de la empresa sin afectar el sistema.</p>
+            <button onclick="llamarAPI('/db/usuarios', 'GET')">Consultar DB</button>
+        </div>
+
+        <div class="card">
+            <h3>🕸️ Módulo Web</h3>
+            <p>Extrae información de internet (Scraping) para análisis de mercado.</p>
+            <button onclick="llamarAPI('/web/scraping', 'GET')">Hacer Scraping</button>
+        </div>
+
+        <!-- Este módulo tiene el ID 'modulo-rpa' para que el script lo oculte si estamos en la nube -->
+        <div class="card" id="modulo-rpa">
+            <h3>🤖 Módulo RPA</h3>
+            <p>Controla el ratón y teclado de la PC (Solo funciona en local).</p>
+            <button class="btn-warning" onclick="llamarAPI('/pc/automatizar', 'POST')">Controlar PC</button>
+        </div>
+    </div>
+
+    <div id="consola">> Esperando comandos...</div>
+
+    <script>
+        // Detectar si estamos en internet (Render) o en local
+        const esNube = window.location.hostname !== '127.0.0.1' && window.location.hostname !== 'localhost';
+        
+        if (esNube) {
+            // Si estamos en la nube, ocultamos el módulo RPA
+            document.getElementById('modulo-rpa').style.display = 'none';
+            document.getElementById('consola').innerText = "> Sistema en la nube listo. (Módulo RPA deshabilitado por seguridad).";
+        }
+
+        async function llamarAPI(ruta, metodo) {
+            const consola = document.getElementById('consola');
+            consola.innerText = `> Ejecutando ${metodo} ${ruta}...\n> Por favor espera...`;
+
+            try {
+                const respuesta = await fetch(ruta, { method: metodo });
+                const datos = await respuesta.json();
+
+                if (respuesta.ok) {
+                    consola.innerText = `> ✅ ÉXITO:\n\n` + JSON.stringify(datos, null, 4);
+                } else {
+                    consola.innerText = `> ❌ ERROR DEL SERVIDOR:\n\n` + JSON.stringify(datos, null, 4);
+                }
+            } catch (error) {
+                consola.innerText = `> ❌ ERROR DE CONEXIÓN:\n\n${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>
