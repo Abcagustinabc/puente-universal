@@ -7,5 +7,5 @@ beautifulsoup4
 python-multipart
 sqlalchemy
 psycopg[binary]
-passlib[bcrypt]
+passlib
 python-jose[cryptography]

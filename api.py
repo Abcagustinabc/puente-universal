@@ -22,7 +22,6 @@ SECRET_KEY = "super_secreto_para_tokens_2026_cambiar_en_produccion"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# Se conecta a Neon usando la variable de entorno de Render
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./usuarios.db")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
@@ -31,10 +30,10 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# ⚠️ AQUÍ ESTÁ EL CAMBIO: Usamos pbkdf2_sha256 en lugar de bcrypt
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-# Modelo de Usuario en la Base de Datos
 class UsuarioDB(Base):
     __tablename__ = "usuarios"
     id = Column(Integer, primary_key=True, index=True)
@@ -50,14 +49,10 @@ def get_db():
     finally:
         db.close()
 
-# Modelos de Validación
 class UsuarioRegistro(BaseModel):
     email: str
     password: str
 
-# ==========================================
-# FUNCIONES DE AUTENTICACIÓN
-# ==========================================
 def crear_token(data: dict):
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -84,7 +79,7 @@ def obtener_usuario_actual(token: str = Depends(oauth2_scheme), db: Session = De
     return usuario
 
 # ==========================================
-# ENDPOINTS DE REGISTRO Y LOGIN
+# ENDPOINTS DE AUTENTICACIÓN
 # ==========================================
 @app.post("/registro")
 def registrar_usuario(user: UsuarioRegistro, db: Session = Depends(get_db)):
@@ -108,14 +103,14 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     return {"access_token": token, "token_type": "bearer"}
 
 # ==========================================
-# RUTA PRINCIPAL (Frontend)
+# RUTA PRINCIPAL
 # ==========================================
 @app.get("/")
 def raiz():
     return FileResponse("index_puente.html")
 
 # ==========================================
-# MÓDULOS PROTEGIDOS (Solo usuarios con Token)
+# MÓDULOS PROTEGIDOS
 # ==========================================
 @app.post("/excel/leer")
 async def leer_excel(
@@ -138,7 +133,6 @@ def consultar_db(
 ):
     if not peticion.consulta.strip().upper().startswith("SELECT"):
         raise HTTPException(status_code=403, detail="Solo se permiten consultas SELECT.")
-    
     try:
         conn = sqlite3.connect("empresa.db")
         cursor = conn.cursor()
