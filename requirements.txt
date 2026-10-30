@@ -6,6 +6,6 @@ requests
 beautifulsoup4
 python-multipart
 sqlalchemy
-psycopg2-binary
+psycopg[binary]
 passlib[bcrypt]
 python-jose[cryptography]
