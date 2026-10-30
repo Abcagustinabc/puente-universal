@@ -3,144 +3,253 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>El Puente Universal - Dashboard</title>
+    <title>El Puente Universal - SaaS</title>
     <style>
         :root { --bg: #0f172a; --panel: #1e293b; --primary: #3b82f6; --success: #10b981; --text: #f8fafc; --muted: #94a3b8; }
         body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         .header { text-align: center; margin-bottom: 30px; }
         .header h1 { color: var(--primary); margin-bottom: 5px; }
+        
+        /* Estilos de la pantalla de Login */
+        .login-container { background-color: var(--panel); padding: 40px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); width: 100%; max-width: 400px; }
+        .tabs { display: flex; margin-bottom: 20px; }
+        .tab { flex: 1; text-align: center; padding: 10px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--muted); }
+        .tab.active { border-bottom-color: var(--primary); color: var(--primary); font-weight: bold; }
+        input { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; margin-bottom: 10px; }
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-secondary { background-color: var(--success); color: white; }
+        .oculto { display: none !important; }
+        #mensaje { text-align: center; margin-top: 15px; font-size: 14px; font-weight: bold; }
+
+        /* Estilos del Dashboard */
         .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; width: 100%; max-width: 1000px; }
         .card { background-color: var(--panel); padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; flex-direction: column; }
         .card h3 { margin-top: 0; color: var(--text); border-bottom: 1px solid #334155; padding-bottom: 10px; }
         .card p { color: var(--muted); font-size: 0.9em; flex-grow: 1; }
-        
-        input[type="text"], input[type="file"] { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
-        
-        button { padding: 10px; border: none; border-radius: 6px; background-color: var(--primary); color: white; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        button:hover { background-color: #2563eb; }
-        .btn-warning { background-color: #f59e0b; }
-        
+        .btn-logout { background-color: #ef4444; color: white; width: auto; padding: 8px 16px; margin-top: 20px; }
         #consola { width: 100%; max-width: 1000px; background-color: #000; color: var(--success); font-family: monospace; padding: 15px; border-radius: 10px; margin-top: 30px; min-height: 150px; box-sizing: border-box; white-space: pre-wrap; font-size: 14px; border: 1px solid #334155; }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <h1>🌉 El Puente Universal</h1>
-        <p>Conecta y procesa datos de cualquier fuente</p>
+    <!-- PANTALLA DE LOGIN -->
+    <div id="pantalla-login" class="login-container">
+        <h1 style="text-align:center; color:var(--primary);">🌉 Puente Universal</h1>
+        <div class="tabs">
+            <div class="tab active" onclick="cambiarTab('login')">Iniciar Sesión</div>
+            <div class="tab" onclick="cambiarTab('registro')">Registrarse</div>
+        </div>
+
+        <div id="form-login">
+            <input type="email" id="loginEmail" placeholder="Correo electrónico">
+            <input type="password" id="loginPassword" placeholder="Contraseña">
+            <button class="btn-primary" onclick="hacerLogin()">Entrar</button>
+        </div>
+
+        <div id="form-registro" class="oculto">
+            <input type="email" id="regEmail" placeholder="Correo electrónico">
+            <input type="password" id="regPassword" placeholder="Contraseña">
+            <button class="btn-secondary" onclick="hacerRegistro()">Crear cuenta</button>
+        </div>
+        <div id="mensaje"></div>
     </div>
 
-    <div class="dashboard">
-        <!-- MÓDULO 1: EXCEL -->
-        <div class="card">
-            <h3>📊 Analizador Excel</h3>
-            <p>Sube tu archivo .xlsx y extraeremos sus primeras filas.</p>
-            <input type="file" id="archivoExcel" accept=".xlsx, .xls">
-            <button onclick="subirExcel()">Procesar Excel</button>
+    <!-- DASHBOARD (Oculto al principio) -->
+    <div id="pantalla-dashboard" class="oculto" style="width:100%; display:flex; flex-direction:column; align-items:center;">
+        <div class="header">
+            <h1>🌉 El Puente Universal</h1>
+            <p>Bienvenido, <span id="userEmail" style="color:var(--success);"></span></p>
+            <button class="btn-logout" onclick="cerrarSesion()">Cerrar Sesión</button>
         </div>
 
-        <!-- MÓDULO 2: SQL -->
-        <div class="card">
-            <h3>🗄️ Consulta SQL</h3>
-            <p>Escribe un comando SQL. (Prueba: <code>SELECT * FROM usuarios</code>)</p>
-            <input type="text" id="querySQL" value="SELECT * FROM usuarios" placeholder="SELECT * FROM tabla">
-            <button onclick="consultarSQL()">Ejecutar SQL</button>
-        </div>
+        <div class="dashboard">
+            <div class="card">
+                <h3>📊 Analizador Excel</h3>
+                <p>Sube tu archivo .xlsx.</p>
+                <input type="file" id="archivoExcel" accept=".xlsx, .xls">
+                <button onclick="subirExcel()">Procesar Excel</button>
+            </div>
 
-        <!-- MÓDULO 3: WEB -->
-        <div class="card">
-            <h3>🕸️ Espía Web</h3>
-            <p>Pega la URL de cualquier página para extraer su título.</p>
-            <input type="text" id="urlScraping" value="https://es.wikipedia.org/wiki/Python" placeholder="https://...">
-            <button onclick="hacerScraping()">Analizar URL</button>
-        </div>
+            <div class="card">
+                <h3>🗄️ Consulta SQL</h3>
+                <p>Escribe un comando SQL.</p>
+                <input type="text" id="querySQL" value="SELECT * FROM usuarios">
+                <button onclick="consultarSQL()">Ejecutar SQL</button>
+            </div>
 
-        <!-- MÓDULO 4: RPA -->
-        <div class="card" id="modulo-rpa">
-            <h3>🤖 Módulo RPA</h3>
-            <p>Controla el ratón (Solo local).</p>
-            <button class="btn-warning" onclick="llamarAPI('/pc/automatizar', 'POST')">Controlar PC</button>
+            <div class="card">
+                <h3>🕸️ Espía Web</h3>
+                <p>Pega la URL a analizar.</p>
+                <input type="text" id="urlScraping" value="https://github.com">
+                <button onclick="hacerScraping()">Analizar URL</button>
+            </div>
         </div>
+        <div id="consola">> Esperando comandos...</div>
     </div>
-
-    <div id="consola">> Esperando comandos...</div>
 
     <script>
-        const esNube = window.location.hostname !== '127.0.0.1' && window.location.hostname !== 'localhost';
-        if (esNube) {
-            document.getElementById('modulo-rpa').style.display = 'none';
-            document.getElementById('consola').innerText = "> Sistema en la nube listo. Los módulos RPA están deshabilitados.";
+        // Variable global para guardar el Token
+        let tokenGuardado = localStorage.getItem("token");
+        let emailGuardado = localStorage.getItem("email");
+
+        // Si ya hay un token guardado, mostramos el Dashboard directamente
+        window.onload = () => {
+            if (tokenGuardado) {
+                mostrarDashboard(emailGuardado);
+            }
+        };
+
+        function cambiarTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('form-login').classList.add('oculto');
+            document.getElementById('form-registro').classList.add('oculto');
+            document.getElementById(`form-${tab}`).classList.remove('oculto');
+            document.getElementById('mensaje').innerText = '';
         }
 
+        function mostrarMensaje(texto, esError = false) {
+            const msj = document.getElementById('mensaje');
+            msj.style.color = esError ? '#f87171' : '#10b981';
+            msj.innerText = texto;
+        }
+
+        function mostrarDashboard(email) {
+            document.getElementById('pantalla-login').classList.add('oculto');
+            document.getElementById('pantalla-dashboard').classList.remove('oculto');
+            document.getElementById('userEmail').innerText = email;
+        }
+
+        async function hacerRegistro() {
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPassword').value;
+
+            if (!email || password.length < 6) {
+                return mostrarMensaje('⚠️ Correo y contraseña (mín. 6 caracteres) requeridos.', true);
+            }
+
+            mostrarMensaje('Registrando...');
+            try {
+                const res = await fetch('/registro', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const datos = await res.json();
+                if (res.ok) {
+                    mostrarMensaje('✅ Registro exitoso. Ahora inicia sesión.');
+                } else {
+                    mostrarMensaje(`❌ ${datos.detail}`, true);
+                }
+            } catch (e) {
+                mostrarMensaje('❌ Error de conexión.', true);
+            }
+        }
+
+        async function hacerLogin() {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            mostrarMensaje('Verificando...');
+            
+            // FastAPI OAuth2 espera los datos como formulario, no JSON
+            const formData = new URLSearchParams();
+            formData.append('username', email);
+            formData.append('password', password);
+
+            try {
+                const res = await fetch('/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: formData
+                });
+                const datos = await res.json();
+                
+                if (res.ok) {
+                    // Guardamos el token y el email en el navegador
+                    localStorage.setItem("token", datos.access_token);
+                    localStorage.setItem("email", email);
+                    tokenGuardado = datos.access_token;
+                    emailGuardado = email;
+                    
+                    mostrarDashboard(email);
+                } else {
+                    mostrarMensaje(`❌ ${datos.detail}`, true);
+                }
+            } catch (e) {
+                mostrarMensaje('❌ Error de conexión.', true);
+            }
+        }
+
+        function cerrarSesion() {
+            localStorage.removeItem("token");
+            localStorage.removeItem("email");
+            tokenGuardado = null;
+            document.getElementById('pantalla-dashboard').classList.add('oculto');
+            document.getElementById('pantalla-login').classList.remove('oculto');
+            mostrarMensaje('');
+        }
+
+        // ==========================================
+        // FUNCIONES DE LOS MÓDULOS (Envían el Token)
+        // ==========================================
         function imprimirConsola(texto, esError = false) {
             const consola = document.getElementById('consola');
             consola.innerText = esError ? `> ❌ ERROR:\n\n${texto}` : `> ✅ ÉXITO:\n\n${texto}`;
         }
 
-        // 1. Subir Excel
         async function subirExcel() {
             const fileInput = document.getElementById('archivoExcel');
-            if (fileInput.files.length === 0) {
-                return imprimirConsola("Por favor, selecciona un archivo Excel primero.", true);
-            }
+            if (fileInput.files.length === 0) return imprimirConsola("Selecciona un archivo Excel.", true);
 
             const formData = new FormData();
             formData.append("archivo", fileInput.files[0]);
+            document.getElementById('consola').innerText = "> Subiendo Excel...";
 
-            document.getElementById('consola').innerText = "> Subiendo y analizando Excel...";
             try {
-                const res = await fetch('/excel/leer', { method: 'POST', body: formData });
+                const res = await fetch('/excel/leer', { 
+                    method: 'POST', 
+                    body: formData,
+                    headers: { 'Authorization': `Bearer ${tokenGuardado}` } // Enviamos el token
+                });
                 const datos = await res.json();
                 imprimirConsola(JSON.stringify(datos, null, 4), !res.ok);
-            } catch (e) {
-                imprimirConsola(e.message, true);
-            }
+            } catch (e) { imprimirConsola(e.message, true); }
         }
 
-        // 2. Consulta SQL
         async function consultarSQL() {
             const query = document.getElementById('querySQL').value;
             document.getElementById('consola').innerText = "> Ejecutando SQL...";
             try {
                 const res = await fetch('/db/consultar', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${tokenGuardado}` // Enviamos el token
+                    },
                     body: JSON.stringify({ consulta: query })
                 });
                 const datos = await res.json();
                 imprimirConsola(JSON.stringify(datos, null, 4), !res.ok);
-            } catch (e) {
-                imprimirConsola(e.message, true);
-            }
+            } catch (e) { imprimirConsola(e.message, true); }
         }
 
-        // 3. Scraping
         async function hacerScraping() {
             const url = document.getElementById('urlScraping').value;
             document.getElementById('consola').innerText = "> Analizando URL...";
             try {
                 const res = await fetch('/web/scraping', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${tokenGuardado}` // Enviamos el token
+                    },
                     body: JSON.stringify({ url: url })
                 });
                 const datos = await res.json();
                 imprimirConsola(JSON.stringify(datos, null, 4), !res.ok);
-            } catch (e) {
-                imprimirConsola(e.message, true);
-            }
-        }
-
-        // 4. RPA (El que ya teníamos)
-        async function llamarAPI(ruta, metodo) {
-            document.getElementById('consola').innerText = `> Ejecutando ${metodo} ${ruta}...`;
-            try {
-                const res = await fetch(ruta, { method: metodo });
-                const datos = await res.json();
-                imprimirConsola(JSON.stringify(datos, null, 4), !res.ok);
-            } catch (e) {
-                imprimirConsola(e.message, true);
-            }
+            } catch (e) { imprimirConsola(e.message, true); }
         }
     </script>
 </body>

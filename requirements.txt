@@ -5,3 +5,7 @@ openpyxl
 requests
 beautifulsoup4
 python-multipart
+sqlalchemy
+psycopg2-binary
+passlib[bcrypt]
+python-jose[cryptography]
