@@ -9,3 +9,4 @@ sqlalchemy
 psycopg[binary]
 passlib
 python-jose[cryptography]
+numpy

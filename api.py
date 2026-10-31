@@ -4,6 +4,7 @@ import pandas as pd
 import requests
 import random
 import math
+import numpy as np
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status
 from fastapi.responses import FileResponse
@@ -15,14 +16,14 @@ from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 
-app = FastAPI(title="Puente Universal SaaS con IA")
+app = FastAPI(title="Puente Universal Enterprise")
 
 # ==========================================
-# CONFIGURACIÓN DE SEGURIDAD Y BASE DE DATOS
+# CONFIGURACIÓN GENERAL
 # ==========================================
-SECRET_KEY = "super_secreto_para_tokens_2026_cambiar_en_produccion"
+SECRET_KEY = "super_secreto_2026_enterprise"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./usuarios.db")
 if DATABASE_URL.startswith("postgres://"):
@@ -31,7 +32,6 @@ if DATABASE_URL.startswith("postgres://"):
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
-
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
@@ -50,46 +50,26 @@ def get_db():
     finally:
         db.close()
 
+def obtener_usuario_actual(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        usuario = db.query(UsuarioDB).filter(UsuarioDB.email == email).first()
+        if usuario is None:
+            raise HTTPException(status_code=401, detail="Token inválido")
+        return usuario
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token inválido")
+
 class UsuarioRegistro(BaseModel):
     email: str
     password: str
 
-def crear_token(data: dict):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-def obtener_usuario_actual(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    credenciales_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Token inválido o expirado",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
-            raise credenciales_exception
-    except JWTError:
-        raise credenciales_exception
-    
-    usuario = db.query(UsuarioDB).filter(UsuarioDB.email == email).first()
-    if usuario is None:
-        raise credenciales_exception
-    return usuario
-
-# ==========================================
-# ENDPOINTS DE AUTENTICACIÓN
-# ==========================================
 @app.post("/registro")
 def registrar_usuario(user: UsuarioRegistro, db: Session = Depends(get_db)):
-    usuario_existente = db.query(UsuarioDB).filter(UsuarioDB.email == user.email).first()
-    if usuario_existente:
+    if db.query(UsuarioDB).filter(UsuarioDB.email == user.email).first():
         raise HTTPException(status_code=400, detail="El correo ya está registrado.")
-    
-    hashed_pw = pwd_context.hash(user.password)
-    nuevo_usuario = UsuarioDB(email=user.email, password_hash=hashed_pw)
+    nuevo_usuario = UsuarioDB(email=user.email, password_hash=pwd_context.hash(user.password))
     db.add(nuevo_usuario)
     db.commit()
     return {"status": "éxito", "mensaje": "Usuario registrado correctamente."}
@@ -99,57 +79,61 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     usuario = db.query(UsuarioDB).filter(UsuarioDB.email == form_data.username).first()
     if not usuario or not pwd_context.verify(form_data.password, usuario.password_hash):
         raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos.")
-    
-    token = crear_token(data={"sub": usuario.email})
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    token = jwt.encode({"sub": usuario.email, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
     return {"access_token": token, "token_type": "bearer"}
 
-# ==========================================
-# RUTA PRINCIPAL
-# ==========================================
 @app.get("/")
 def raiz():
     return FileResponse("index_puente.html")
 
 # ==========================================
-# MÓDULOS PROTEGIDOS (Excel, SQL, Scraping)
+# A. EXCEL NIVEL EMPRESA (Análisis completo)
 # ==========================================
-@app.post("/excel/leer")
-async def leer_excel(
+@app.post("/excel/analizar")
+async def analizar_excel(
     archivo: UploadFile = File(...), 
     usuario_actual: UsuarioDB = Depends(obtener_usuario_actual)
 ):
     try:
         df = pd.read_excel(archivo.file)
-        return {"status": "éxito", "total_filas": len(df), "primeras_10": df.head(10).to_dict(orient="records")}
+        
+        # Análisis profundo
+        filas_totales = len(df)
+        columnas = list(df.columns)
+        
+        # Resumen de columnas numéricas
+        resumen = {}
+        for col in df.select_dtypes(include=['number']).columns:
+            resumen[col] = {
+                "suma": float(df[col].sum()),
+                "promedio": float(df[col].mean()),
+                "maximo": float(df[col].max()),
+                "minimo": float(df[col].min())
+            }
+            
+        # Muestra de las primeras 5 filas (para que el usuario vea la data)
+        muestra = df.head(5).to_dict(orient="records")
+        
+        return {
+            "status": "éxito", 
+            "archivo": archivo.filename,
+            "total_filas": filas_totales,
+            "columnas_detectadas": columnas,
+            "resumen_estadistico": resumen,
+            "muestra_datos": muestra
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Error procesando Excel: {str(e)}")
 
-class PeticionSQL(BaseModel):
-    consulta: str
-
-@app.post("/db/consultar")
-def consultar_db(
-    peticion: PeticionSQL,
-    usuario_actual: UsuarioDB = Depends(obtener_usuario_actual)
-):
-    if not peticion.consulta.strip().upper().startswith("SELECT"):
-        raise HTTPException(status_code=403, detail="Solo se permiten consultas SELECT.")
-    try:
-        conn = sqlite3.connect("empresa.db")
-        cursor = conn.cursor()
-        cursor.execute(peticion.consulta)
-        columnas = [desc[0] for desc in cursor.description]
-        filas = cursor.fetchall()
-        conn.close()
-        return {"status": "éxito", "resultados": [dict(zip(columnas, f)) for f in filas]}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
+# ==========================================
+# B. SCRAPING NIVEL EMPRESA (Extraer Enlaces)
+# ==========================================
 class PeticionScraping(BaseModel):
     url: str
 
 @app.post("/web/scraping")
-def espiar_precio(
+def espiar_web(
     peticion: PeticionScraping,
     usuario_actual: UsuarioDB = Depends(obtener_usuario_actual)
 ):
@@ -157,69 +141,78 @@ def espiar_precio(
         headers = {'User-Agent': 'Mozilla/5.0'}
         respuesta = requests.get(peticion.url, headers=headers, timeout=10)
         soup = BeautifulSoup(respuesta.text, 'html.parser')
+        
+        # Extraer todos los enlaces (a href)
+        enlaces = []
+        for a in soup.find_all('a', href=True):
+            texto = a.text.strip()
+            if texto: # Solo si tiene texto visible
+                enlaces.append({"texto": texto, "url": a['href']})
+            if len(enlaces) >= 20: # Limitamos a 20 para no saturar
+                break
+                
         titulo = soup.title.string if soup.title else "Sin título"
-        return {"status": "éxito", "titulo_extraido": titulo.strip()}
+        
+        return {
+            "status": "éxito", 
+            "titulo_pagina": titulo.strip(), 
+            "total_enlaces_encontrados": len(enlaces),
+            "primeros_20_enlaces": enlaces
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Error en scraping: {str(e)}")
 
 # ==========================================
-# NUEVO MÓDULO 5: CEREBRO DE IA (RED NEURONAL)
+# C. IA NIVEL EMPRESA (Red Neuronal 3 Variables)
 # ==========================================
 class RedNeuronal:
-    def __init__(self):
-        self.pesos_ocultos = [[random.uniform(-1, 1) for _ in range(2)] for _ in range(3)]
-        self.pesos_salida = [random.uniform(-1, 1) for _ in range(3)]
-        self.sesgo_oculto = [random.uniform(-1, 1) for _ in range(3)]
-        self.sesgo_salida = random.uniform(-1, 1)
+    def __init__(self, entradas=3, ocultas=4, salidas=1):
+        # Inicializamos matrices con numpy
+        self.w1 = np.random.randn(entradas, ocultas) * 0.1
+        self.b1 = np.zeros((1, ocultas))
+        self.w2 = np.random.randn(ocultas, salidas) * 0.1
+        self.b2 = np.zeros((1, salidas))
 
     def sigmoide(self, x):
-        if x < -500: return 0
-        if x > 500: return 1
-        return 1 / (1 + math.exp(-x))
+        return 1 / (1 + np.exp(-np.clip(x, -500, 500)))
 
     def derivada_sigmoide(self, x):
         return x * (1 - x)
 
-    def predecir(self, entradas):
-        capa_oculta = []
-        for i in range(3):
-            suma = sum(entradas[j] * self.pesos_ocultos[i][j] for j in range(2)) + self.sesgo_oculto[i]
-            capa_oculta.append(self.sigmoide(suma))
-        suma_salida = sum(capa_oculta[i] * self.pesos_salida[i] for i in range(3)) + self.sesgo_salida
-        salida = self.sigmoide(suma_salida)
+    def predecir(self, X):
+        capa_oculta = self.sigmoide(np.dot(X, self.w1) + self.b1)
+        salida = self.sigmoide(np.dot(capa_oculta, self.w2) + self.b2)
         return salida, capa_oculta
 
-    def entrenar(self, entradas, objetivo):
-        salida, capa_oculta = self.predecir(entradas)
-        error = objetivo - salida
-        delta_salida = error * self.derivada_sigmoide(salida)
-        
-        delta_oculto = []
-        for i in range(3):
-            error_oculto = delta_salida * self.pesos_salida[i]
-            delta_oculto.append(error_oculto * self.derivada_sigmoide(capa_oculta[i]))
+    def entrenar(self, X, y, epocas=2000, lr=0.1):
+        for _ in range(epocas):
+            # Forward
+            capa_oculta = self.sigmoide(np.dot(X, self.w1) + self.b1)
+            salida = self.sigmoide(np.dot(capa_oculta, self.w2) + self.b2)
+            
+            # Error
+            error_salida = y - salida
+            delta_salida = error_salida * self.derivada_sigmoide(salida)
+            
+            error_oculto = np.dot(delta_salida, self.w2.T)
+            delta_oculto = error_oculto * self.derivada_sigmoide(capa_oculta)
+            
+            # Actualizar
+            self.w2 += np.dot(capa_oculta.T, delta_salida) * lr
+            self.b2 += np.sum(delta_salida, axis=0, keepdims=True) * lr
+            self.w1 += np.dot(X.T, delta_oculto) * lr
+            self.b1 += np.sum(delta_oculto, axis=0, keepdims=True) * lr
 
-        for i in range(3):
-            self.pesos_salida[i] += 0.1 * delta_salida * capa_oculta[i]
-        self.sesgo_salida += 0.1 * delta_salida
-
-        for i in range(3):
-            for j in range(2):
-                self.pesos_ocultos[i][j] += 0.1 * delta_oculto[i] * entradas[j]
-            self.sesgo_oculto[i] += 0.1 * delta_oculto[i]
-
-red_ia = RedNeuronal()
-datos_entrenamiento = [
-    ([0.9, 0.1], 1), ([0.8, 0.2], 1), ([0.2, 0.8], 0),
-    ([0.1, 0.9], 0), ([0.6, 0.4], 1), ([0.3, 0.7], 0),
-]
-for _ in range(1000):
-    for entradas, objetivo in datos_entrenamiento:
-        red_ia.entrenar(entradas, objetivo)
+# Entrenar con 3 variables: [Ingresos, Deuda, Antigüedad Laboral]
+red_ia = RedNeuronal(entradas=3, ocultas=4, salidas=1)
+X_train = np.array([[0.9, 0.1, 0.9], [0.8, 0.2, 0.7], [0.2, 0.8, 0.2], [0.1, 0.9, 0.1], [0.6, 0.4, 0.5], [0.3, 0.7, 0.3]])
+y_train = np.array([[1], [1], [0], [0], [1], [0]])
+red_ia.entrenar(X_train, y_train)
 
 class PeticionPrediccion(BaseModel):
     ingresos: float
     deuda: float
+    antiguedad: float
 
 @app.post("/ia/predecir")
 def predecir_riesgo(
@@ -227,23 +220,19 @@ def predecir_riesgo(
     usuario_actual: UsuarioDB = Depends(obtener_usuario_actual)
 ):
     try:
-        if not (0 <= peticion.ingresos <= 1) or not (0 <= peticion.deuda <= 1):
-            raise HTTPException(status_code=400, detail="Ingresos y deuda deben estar entre 0 y 1.")
+        X = np.array([[peticion.ingresos, peticion.deuda, peticion.antiguedad]])
+        prediccion, _ = red_ia.predecir(X)
+        prob = float(prediccion[0][0])
         
-        prediccion, _ = red_ia.predecir([peticion.ingresos, peticion.deuda])
-        
-        if prediccion > 0.7:
-            decision = "APROBADO (Cliente Seguro)"
-        elif prediccion < 0.3:
-            decision = "RECHAZADO (Alto Riesgo)"
-        else:
-            decision = "REVISIÓN MANUAL (Riesgo Medio)"
+        if prob > 0.7: decision = "APROBADO (Riesgo Bajo)"
+        elif prob < 0.3: decision = "RECHAZADO (Riesgo Alto)"
+        else: decision = "REVISIÓN (Riesgo Medio)"
             
         return {
             "status": "éxito", 
             "decision": decision,
-            "confianza": round(prediccion, 4),
-            "mensaje": f"La red neuronal calculó un riesgo del {prediccion*100:.1f}%"
+            "probabilidad": round(prob, 4),
+            "mensaje": f"La IA calculó un riesgo del {prob*100:.1f}% con 3 variables."
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
