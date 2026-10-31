@@ -22,9 +22,10 @@ from google import genai
 from playwright.sync_api import sync_playwright
 
 # ==========================================
-# CONFIGURACIÓN DE IA
+# CONFIGURACIÓN DE IA Y BÚSQUEDA
 # ==========================================
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "clave_no_configurada")
+SERPER_API_KEY = os.getenv("SERPER_API_KEY", "clave_no_configurada")
 client_ia = genai.Client(api_key=GEMINI_API_KEY)
 
 app = FastAPI(title="Puente Universal - Cazador Universal")
@@ -116,31 +117,32 @@ async def analizar_excel_pro(
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 # ==========================================
-# B. EL CAZADOR UNIVERSAL (DuckDuckGo + Playwright + Gemini)
+# B. EL CAZADOR UNIVERSAL (Serper + Playwright + Gemini)
 # ==========================================
 class PeticionCazador(BaseModel):
     busqueda: str
 
-def buscar_en_duckduckgo(query):
-    """Busca en DuckDuckGo y devuelve los enlaces de tiendas."""
-    url = f"https://html.duckduckgo.com/html/?q={query.replace(' ', '+')}+comprar"
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-    res = requests.get(url, headers=headers)
-    soup = BeautifulSoup(res.text, 'html.parser')
-    
-    enlaces = []
-    for a in soup.find_all('a', href=True):
-        href = a['href']
-        if "duckduckgo" in href and "http" in href:
-            # DuckDuckGo ofusca los enlaces, los limpiamos
-            match = re.search(r'uddg=(https?://[^&]+)', href)
-            if match:
-                enlace_limpio = requests.utils.unquote(match.group(1))
-                if not any(x in enlace_limpio for x in ["duckduckgo", "youtube", "facebook"]):
-                    enlaces.append(enlace_limpio)
-        if len(enlaces) >= 3:
-            break
-    return enlaces
+def buscar_con_serper(query):
+    """Busca en Google usando la API de Serper (resultados limpios y sin bloqueos)."""
+    url = "https://google.serper.dev/search"
+    payload = json.dumps({"q": query + " comprar"})
+    headers = {
+        'X-API-KEY': SERPER_API_KEY,
+        'Content-Type': 'application/json'
+    }
+    try:
+        response = requests.post(url, headers=headers, data=payload, timeout=10)
+        data = response.json()
+        enlaces = []
+        for item in data.get("organic", []):
+            link = item.get("link")
+            if link and not any(x in link for x in ["youtube", "facebook", "instagram"]):
+                enlaces.append(link)
+            if len(enlaces) >= 3:
+                break
+        return enlaces
+    except Exception as e:
+        return []
 
 def extraer_datos_con_ia(html, objetivo):
     prompt = f"""
@@ -167,10 +169,10 @@ def ejecutar_cazador(
     usuario_actual: UsuarioDB = Depends(obtener_usuario_actual)
 ):
     try:
-        # 1. Buscar en DuckDuckGo
-        enlaces = buscar_en_duckduckgo(peticion.busqueda)
+        # 1. Buscar con Serper (Google)
+        enlaces = buscar_con_serper(peticion.busqueda)
         if not enlaces:
-            return {"status": "error", "mensaje": "No se encontraron tiendas para esa búsqueda."}
+            return {"status": "error", "mensaje": "No se encontraron tiendas. Verifica tu API Key de Serper."}
         
         resultados = []
         
@@ -182,7 +184,7 @@ def ejecutar_cazador(
             for link in enlaces:
                 try:
                     page.goto(link, timeout=20000)
-                    page.wait_for_timeout(3000) # Esperar a que JavaScript cargue
+                    page.wait_for_timeout(3000)
                     html = page.content()
                     
                     datos = extraer_datos_con_ia(html, peticion.busqueda)
