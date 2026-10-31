@@ -22,15 +22,15 @@ from google import genai
 from playwright.sync_api import sync_playwright
 
 # ==========================================
-# CONFIGURACIÓN DE IA (Lee la variable de entorno de Render)
+# CONFIGURACIÓN DE IA
 # ==========================================
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "clave_no_configurada")
 client_ia = genai.Client(api_key=GEMINI_API_KEY)
 
-app = FastAPI(title="Puente Universal - Cazador de Ofertas")
+app = FastAPI(title="Puente Universal - Cazador Universal")
 
 # ==========================================
-# CONFIGURACIÓN GENERAL (LOGIN, DB)
+# CONFIGURACIÓN GENERAL
 # ==========================================
 SECRET_KEY = "super_secreto_2026_enterprise"
 ALGORITHM = "HS256"
@@ -116,21 +116,28 @@ async def analizar_excel_pro(
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 # ==========================================
-# B. EL CAZADOR DE OFERTAS
+# B. EL CAZADOR UNIVERSAL (DuckDuckGo + Playwright + Gemini)
 # ==========================================
 class PeticionCazador(BaseModel):
     busqueda: str
 
-def buscar_en_google(query):
-    url = f"https://www.google.com/search?q={query.replace(' ', '+')}&tbm=shop"
+def buscar_en_duckduckgo(query):
+    """Busca en DuckDuckGo y devuelve los enlaces de tiendas."""
+    url = f"https://html.duckduckgo.com/html/?q={query.replace(' ', '+')}+comprar"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     res = requests.get(url, headers=headers)
     soup = BeautifulSoup(res.text, 'html.parser')
+    
     enlaces = []
     for a in soup.find_all('a', href=True):
         href = a['href']
-        if "http" in href and "google" not in href and "youtube" not in href:
-            enlaces.append(href)
+        if "duckduckgo" in href and "http" in href:
+            # DuckDuckGo ofusca los enlaces, los limpiamos
+            match = re.search(r'uddg=(https?://[^&]+)', href)
+            if match:
+                enlace_limpio = requests.utils.unquote(match.group(1))
+                if not any(x in enlace_limpio for x in ["duckduckgo", "youtube", "facebook"]):
+                    enlaces.append(enlace_limpio)
         if len(enlaces) >= 3:
             break
     return enlaces
@@ -160,20 +167,22 @@ def ejecutar_cazador(
     usuario_actual: UsuarioDB = Depends(obtener_usuario_actual)
 ):
     try:
-        enlaces = buscar_en_google(peticion.busqueda)
+        # 1. Buscar en DuckDuckGo
+        enlaces = buscar_en_duckduckgo(peticion.busqueda)
         if not enlaces:
             return {"status": "error", "mensaje": "No se encontraron tiendas para esa búsqueda."}
         
         resultados = []
         
+        # 2. Usar Playwright para abrir cada tienda
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
             
             for link in enlaces:
                 try:
-                    page.goto(link, timeout=15000)
-                    page.wait_for_timeout(3000)
+                    page.goto(link, timeout=20000)
+                    page.wait_for_timeout(3000) # Esperar a que JavaScript cargue
                     html = page.content()
                     
                     datos = extraer_datos_con_ia(html, peticion.busqueda)
@@ -185,6 +194,7 @@ def ejecutar_cazador(
             
             browser.close()
         
+        # 3. Ordenar por precio
         resultados.sort(key=lambda x: x.get('precio', float('inf')))
         
         if not resultados:
