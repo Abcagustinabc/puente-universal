@@ -25,15 +25,16 @@ from playwright.sync_api import sync_playwright
 # ==========================================
 # FORZAR INSTALACIÓN DE CHROMIUM EN RENDER
 # ==========================================
-# Esto descarga el navegador al iniciar el servidor (tarda unos segundos la primera vez)
 try:
     subprocess.run(["playwright", "install", "chromium"], check=False, timeout=60)
 except Exception:
-    pass # Si falla, no detenemos la app, solo el Cazador fallará.
+    pass
 
 # ==========================================
-# CONFIGURACIÓN DE IA Y BÚSQUEDA
+# CONFIGURACIÓN DE VARIABLES DE ENTORNO
 # ==========================================
+# La llave secreta ahora viene de Render (o usa una por defecto fija)
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "llave_super_secreta_fija_2026_enterprise")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "clave_no_configurada")
 SERPER_API_KEY = os.getenv("SERPER_API_KEY", "clave_no_configurada")
 client_ia = genai.Client(api_key=GEMINI_API_KEY)
@@ -43,7 +44,6 @@ app = FastAPI(title="Puente Universal - Cazador Universal")
 # ==========================================
 # CONFIGURACIÓN GENERAL
 # ==========================================
-SECRET_KEY = "super_secreto_2026_enterprise"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
@@ -78,10 +78,10 @@ def obtener_usuario_actual(token: str = Depends(oauth2_scheme), db: Session = De
         email: str = payload.get("sub")
         usuario = db.query(UsuarioDB).filter(UsuarioDB.email == email).first()
         if usuario is None:
-            raise HTTPException(status_code=401, detail="Token inválido")
+            raise HTTPException(status_code=401, detail="Token inválido (usuario no encontrado)")
         return usuario
     except JWTError:
-        raise HTTPException(status_code=401, detail="Token inválido")
+        raise HTTPException(status_code=401, detail="Token inválido o expirado. Vuelve a iniciar sesión.")
 
 class UsuarioRegistro(BaseModel):
     email: str
@@ -127,19 +127,15 @@ async def analizar_excel_pro(
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 # ==========================================
-# B. EL CAZADOR UNIVERSAL (Serper + Playwright + Gemini)
+# B. EL CAZADOR UNIVERSAL
 # ==========================================
 class PeticionCazador(BaseModel):
     busqueda: str
 
 def buscar_con_serper(query):
-    """Busca en Google usando la API de Serper."""
     url = "https://google.serper.dev/search"
     payload = json.dumps({"q": query + " comprar"})
-    headers = {
-        'X-API-KEY': SERPER_API_KEY,
-        'Content-Type': 'application/json'
-    }
+    headers = {'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json'}
     try:
         response = requests.post(url, headers=headers, data=payload, timeout=10)
         data = response.json()
@@ -184,8 +180,6 @@ def ejecutar_cazador(
             return {"status": "error", "mensaje": "No se encontraron tiendas. Verifica tu API Key de Serper."}
         
         resultados = []
-        
-        # Intentar abrir el navegador. Si falla, avisamos claramente.
         try:
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=True)
@@ -225,7 +219,7 @@ def ejecutar_cazador(
         raise HTTPException(status_code=500, detail=f"Error en el cazador: {str(e)}")
 
 # ==========================================
-# C. IA PREDICTIVA (Red Neuronal)
+# C. IA PREDICTIVA
 # ==========================================
 class RedNeuronalProfunda:
     def __init__(self, capas):
