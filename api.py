@@ -5,6 +5,8 @@ import requests
 import random
 import math
 import numpy as np
+import re
+import nltk
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status
 from fastapi.responses import FileResponse
@@ -16,7 +18,13 @@ from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 
-app = FastAPI(title="Puente Universal Enterprise")
+# Descargar recursos de NLTK (Procesamiento de Lenguaje Natural clásico)
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
+
+app = FastAPI(title="Puente Universal - Agente Autónomo")
 
 # ==========================================
 # CONFIGURACIÓN GENERAL
@@ -88,90 +96,124 @@ def raiz():
     return FileResponse("index_puente.html")
 
 # ==========================================
-# A. EXCEL NIVEL EMPRESA (Análisis completo)
+# A. EXCEL NIVEL DIOS (Análisis Predictivo y NLP)
 # ==========================================
 @app.post("/excel/analizar")
-async def analizar_excel(
+async def analizar_excel_pro(
     archivo: UploadFile = File(...), 
     usuario_actual: UsuarioDB = Depends(obtener_usuario_actual)
 ):
     try:
         df = pd.read_excel(archivo.file)
         
-        # Análisis profundo
-        filas_totales = len(df)
-        columnas = list(df.columns)
+        # 1. Perfilado de datos (Data Profiling)
+        perfil = {
+            "total_filas": len(df),
+            "total_columnas": len(df.columns),
+            "valores_nulos": int(df.isnull().sum().sum()),
+            "tipos_datos": {col: str(dtype) for col, dtype in df.dtypes.items()}
+        }
         
-        # Resumen de columnas numéricas
-        resumen = {}
-        for col in df.select_dtypes(include=['number']).columns:
-            resumen[col] = {
-                "suma": float(df[col].sum()),
-                "promedio": float(df[col].mean()),
-                "maximo": float(df[col].max()),
-                "minimo": float(df[col].min())
-            }
-            
-        # Muestra de las primeras 5 filas (para que el usuario vea la data)
-        muestra = df.head(5).to_dict(orient="records")
-        
+        # 2. Correlaciones (Qué columnas afectan a otras)
+        correlaciones = {}
+        num_df = df.select_dtypes(include=['number'])
+        if len(num_df.columns) > 1:
+            corr_matrix = num_df.corr().round(2).to_dict()
+            correlaciones = corr_matrix
+
+        # 3. Detección de Anomalías (Outliers usando Z-Score)
+        anomalias = {}
+        for col in num_df.columns:
+            media = num_df[col].mean()
+            std = num_df[col].std()
+            if std > 0:
+                outliers = df[np.abs((num_df[col] - media) / std) > 3]
+                if not outliers.empty:
+                    anomalias[col] = len(outliers)
+                    
         return {
             "status": "éxito", 
-            "archivo": archivo.filename,
-            "total_filas": filas_totales,
-            "columnas_detectadas": columnas,
-            "resumen_estadistico": resumen,
-            "muestra_datos": muestra
+            "perfil": perfil,
+            "correlaciones": correlaciones,
+            "anomalias_detectadas": anomalias,
+            "mensaje": "Análisis avanzado completado con éxito."
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error procesando Excel: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 # ==========================================
-# B. SCRAPING NIVEL EMPRESA (Extraer Enlaces)
+# B. SCRAPING NIVEL DIOS (Agente Rastreador Universal)
 # ==========================================
-class PeticionScraping(BaseModel):
+class PeticionAgente(BaseModel):
     url: str
+    objetivo: str # Ej: "precios", "fechas", "nombres"
 
-@app.post("/web/scraping")
-def espiar_web(
-    peticion: PeticionScraping,
+@app.post("/web/agente")
+def agente_rastreador(
+    peticion: PeticionAgente,
     usuario_actual: UsuarioDB = Depends(obtener_usuario_actual)
 ):
     try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        respuesta = requests.get(peticion.url, headers=headers, timeout=10)
-        soup = BeautifulSoup(respuesta.text, 'html.parser')
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        respuesta = requests.get(peticion.url, headers=headers, timeout=15)
+        soup = BeautifulSoup(respuesta.text, 'lxml')
         
-        # Extraer todos los enlaces (a href)
-        enlaces = []
-        for a in soup.find_all('a', href=True):
-            texto = a.text.strip()
-            if texto: # Solo si tiene texto visible
-                enlaces.append({"texto": texto, "url": a['href']})
-            if len(enlaces) >= 20: # Limitamos a 20 para no saturar
-                break
+        # 1. Limpieza profunda (Eliminar scripts, estilos, menús de navegación)
+        for script in soup(["script", "style", "nav", "footer", "header"]):
+            script.extract()
+            
+        texto_limpio = soup.get_text(separator=' ')
+        
+        # 2. Extracción Inteligente basada en el objetivo
+        resultado_extraido = []
+        
+        if peticion.objetivo.lower() == "precios":
+            # Busca patrones como $100, 100 USD, 100€
+            patron = r'(\$|€|USD|MXN|EUR)\s?(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)'
+            coincidencias = re.findall(patron, texto_limpio)
+            for simbolo, numero in coincidencias[:20]: # Top 20
+                resultado_extraido.append(f"{simbolo}{numero}")
                 
-        titulo = soup.title.string if soup.title else "Sin título"
-        
+        elif peticion.objetivo.lower() == "fechas":
+            # Busca fechas en formatos comunes
+            patron = r'\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b'
+            coincidencias = re.findall(patron, texto_limpio)
+            resultado_extraido = list(set(coincidencias))[:20]
+            
+        elif peticion.objetivo.lower() == "enlaces":
+            for a in soup.find_all('a', href=True):
+                resultado_extraido.append({"texto": a.text.strip(), "url": a['href']})
+                if len(resultado_extraido) >= 20: break
+                
+        else:
+            # Búsqueda por palabra clave en el texto
+            palabras = nltk.word_tokenize(texto_limpio.lower())
+            contexto = [w for w in palabras if peticion.objetivo.lower() in w]
+            resultado_extraido = list(set(contexto))[:20]
+
         return {
             "status": "éxito", 
-            "titulo_pagina": titulo.strip(), 
-            "total_enlaces_encontrados": len(enlaces),
-            "primeros_20_enlaces": enlaces
+            "url_analizada": peticion.url,
+            "objetivo": peticion.objetivo,
+            "resultados_encontrados": resultado_extraido,
+            "mensaje": f"Se analizaron {len(texto_limpio)} caracteres de la página."
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error en scraping: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error en el agente: {str(e)}")
 
 # ==========================================
-# C. IA NIVEL EMPRESA (Red Neuronal 3 Variables)
+# C. IA NIVEL DIOS (Red Neuronal con Múltiples Capas y Regresión)
 # ==========================================
-class RedNeuronal:
-    def __init__(self, entradas=3, ocultas=4, salidas=1):
-        # Inicializamos matrices con numpy
-        self.w1 = np.random.randn(entradas, ocultas) * 0.1
-        self.b1 = np.zeros((1, ocultas))
-        self.w2 = np.random.randn(ocultas, salidas) * 0.1
-        self.b2 = np.zeros((1, salidas))
+class RedNeuronalProfunda:
+    def __init__(self, capas):
+        # Inicialización de pesos para múltiples capas (Deep Learning puro)
+        self.pesos = []
+        self.sesgos = []
+        for i in range(len(capas) - 1):
+            w = np.random.randn(capas[i], capas[i+1]) * 0.1
+            b = np.zeros((1, capas[i+1]))
+            self.pesos.append(w)
+            self.sesgos.append(b)
 
     def sigmoide(self, x):
         return 1 / (1 + np.exp(-np.clip(x, -500, 500)))
@@ -179,34 +221,32 @@ class RedNeuronal:
     def derivada_sigmoide(self, x):
         return x * (1 - x)
 
-    def predecir(self, X):
-        capa_oculta = self.sigmoide(np.dot(X, self.w1) + self.b1)
-        salida = self.sigmoide(np.dot(capa_oculta, self.w2) + self.b2)
-        return salida, capa_oculta
+    def forward(self, X):
+        activaciones = [X]
+        for i in range(len(self.pesos)):
+            net = np.dot(activaciones[-1], self.pesos[i]) + self.sesgos[i]
+            activaciones.append(self.sigmoide(net))
+        return activaciones
 
     def entrenar(self, X, y, epocas=2000, lr=0.1):
         for _ in range(epocas):
-            # Forward
-            capa_oculta = self.sigmoide(np.dot(X, self.w1) + self.b1)
-            salida = self.sigmoide(np.dot(capa_oculta, self.w2) + self.b2)
+            activaciones = self.forward(X)
+            error = y - activaciones[-1]
             
-            # Error
-            error_salida = y - salida
-            delta_salida = error_salida * self.derivada_sigmoide(salida)
-            
-            error_oculto = np.dot(delta_salida, self.w2.T)
-            delta_oculto = error_oculto * self.derivada_sigmoide(capa_oculta)
-            
-            # Actualizar
-            self.w2 += np.dot(capa_oculta.T, delta_salida) * lr
-            self.b2 += np.sum(delta_salida, axis=0, keepdims=True) * lr
-            self.w1 += np.dot(X.T, delta_oculto) * lr
-            self.b1 += np.sum(delta_oculto, axis=0, keepdims=True) * lr
+            # Backpropagation para múltiples capas
+            deltas = [error * self.derivada_sigmoide(activaciones[-1])]
+            for i in range(len(self.pesos) - 2, -1, -1):
+                delta = np.dot(deltas[0], self.pesos[i+1].T) * self.derivada_sigmoide(activaciones[i+1])
+                deltas.insert(0, delta)
+                
+            for i in range(len(self.pesos)):
+                self.pesos[i] += np.dot(activaciones[i].T, deltas[i]) * lr
+                self.sesgos[i] += np.sum(deltas[i], axis=0, keepdims=True) * lr
 
-# Entrenar con 3 variables: [Ingresos, Deuda, Antigüedad Laboral]
-red_ia = RedNeuronal(entradas=3, ocultas=4, salidas=1)
-X_train = np.array([[0.9, 0.1, 0.9], [0.8, 0.2, 0.7], [0.2, 0.8, 0.2], [0.1, 0.9, 0.1], [0.6, 0.4, 0.5], [0.3, 0.7, 0.3]])
-y_train = np.array([[1], [1], [0], [0], [1], [0]])
+# Entrenar IA con 3 capas ocultas
+red_ia = RedNeuronalProfunda([3, 5, 4, 1])
+X_train = np.array([[0.9, 0.1, 0.9], [0.8, 0.2, 0.7], [0.2, 0.8, 0.2], [0.1, 0.9, 0.1]])
+y_train = np.array([[1], [1], [0], [0]])
 red_ia.entrenar(X_train, y_train)
 
 class PeticionPrediccion(BaseModel):
@@ -221,8 +261,8 @@ def predecir_riesgo(
 ):
     try:
         X = np.array([[peticion.ingresos, peticion.deuda, peticion.antiguedad]])
-        prediccion, _ = red_ia.predecir(X)
-        prob = float(prediccion[0][0])
+        activaciones = red_ia.forward(X)
+        prob = float(activaciones[-1][0][0])
         
         if prob > 0.7: decision = "APROBADO (Riesgo Bajo)"
         elif prob < 0.3: decision = "RECHAZADO (Riesgo Alto)"
@@ -231,8 +271,7 @@ def predecir_riesgo(
         return {
             "status": "éxito", 
             "decision": decision,
-            "probabilidad": round(prob, 4),
-            "mensaje": f"La IA calculó un riesgo del {prob*100:.1f}% con 3 variables."
+            "probabilidad": round(prob, 4)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

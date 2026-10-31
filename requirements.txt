@@ -10,3 +10,5 @@ psycopg[binary]
 passlib
 python-jose[cryptography]
 numpy
+nltk
+lxml

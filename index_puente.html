@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>El Puente Universal - Enterprise</title>
+    <title>Puente Universal - Agente Autónomo</title>
     <style>
         :root { --bg: #0f172a; --panel: #1e293b; --primary: #3b82f6; --success: #10b981; --text: #f8fafc; --muted: #94a3b8; --ia: #8b5cf6; }
         body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
@@ -40,7 +40,7 @@
 <body>
 
     <div id="pantalla-login" class="login-container">
-        <h1 style="text-align:center; color:var(--primary);">🌉 Puente Enterprise</h1>
+        <h1 style="text-align:center; color:var(--primary);">🌉 Agente Universal</h1>
         <div class="tabs">
             <div class="tab active" onclick="cambiarTab('login')">Iniciar Sesión</div>
             <div class="tab" onclick="cambiarTab('registro')">Registrarse</div>
@@ -60,7 +60,7 @@
 
     <div id="pantalla-dashboard" class="oculto" style="width:100%; display:flex; flex-direction:column; align-items:center;">
         <div class="header">
-            <h1>🌉 Puente Universal Enterprise</h1>
+            <h1>🌉 Agente Autónomo Enterprise</h1>
             <p>Bienvenido, <span id="userEmail" style="color:var(--success);"></span></p>
             <button class="btn-help" onclick="mostrarAyuda()">❓ Guía de Uso</button>
             <button class="btn-logout" onclick="cerrarSesion()">Cerrar Sesión</button>
@@ -68,26 +68,27 @@
 
         <div class="dashboard">
             <div class="card">
-                <h3>📊 Analizador Excel Pro</h3>
-                <p>Sube tu Excel y obtén estadísticas completas de todas tus filas.</p>
+                <h3>📊 Excel Data Profiler</h3>
+                <p>Análisis estadístico, correlaciones y detección de anomalías.</p>
                 <input type="file" id="archivoExcel" accept=".xlsx, .xls">
                 <button onclick="subirExcel()">Analizar Datos</button>
             </div>
 
             <div class="card">
-                <h3>🕸️ Espía Web Pro</h3>
-                <p>Extrae el título y los primeros 20 enlaces de cualquier página.</p>
-                <input type="text" id="urlScraping" value="https://github.com">
-                <button onclick="hacerScraping()">Escanear Web</button>
+                <h3>🕸️ Agente Rastreador Web</h3>
+                <p>Dile qué buscar y él extraerá los datos exactos.</p>
+                <input type="text" id="urlScraping" value="https://www.mercadolibre.com.mx">
+                <input type="text" id="objetivoScraping" placeholder="Ej: precios, fechas, enlaces...">
+                <button onclick="hacerScraping()">Ejecutar Agente</button>
             </div>
 
             <div class="card" style="border: 2px solid var(--ia);">
-                <h3 style="color: var(--ia);">🧠 IA Predictiva</h3>
-                <p>Analiza el riesgo con 3 variables.</p>
+                <h3 style="color: var(--ia);">🧠 IA Predictiva Deep</h3>
+                <p>Red neuronal de 3 capas ocultas.</p>
                 <input type="number" id="iaIngresos" placeholder="Ingresos (0-1)" step="0.1" min="0" max="1" value="0.8">
                 <input type="number" id="iaDeuda" placeholder="Deuda (0-1)" step="0.1" min="0" max="1" value="0.2">
                 <input type="number" id="iaAntiguedad" placeholder="Antigüedad (0-1)" step="0.1" min="0" max="1" value="0.7">
-                <button style="background-color: var(--ia);" onclick="predecirIA()">Analizar Riesgo</button>
+                <button style="background-color: var(--ia);" onclick="predecirIA()">Predecir Riesgo</button>
             </div>
         </div>
         <div id="consola">> Esperando comandos...</div>
@@ -97,14 +98,14 @@
         <div class="modal-content">
             <h2>📖 Guía de Uso: Enterprise</h2>
             
-            <h4>📊 Analizador Excel Pro</h4>
-            <p>Sube tu Excel. El sistema leerá <strong>todas las filas</strong>, calculará sumas, promedios, máximos y mínimos de las columnas numéricas, y te mostrará un resumen estadístico.</p>
+            <h4>📊 Excel Data Profiler</h4>
+            <p>Sube tu Excel. El sistema leerá <strong>todas las filas</strong>, calculará sumas, promedios, correlaciones entre columnas y detectará valores atípicos (anomalías).</p>
             
-            <h4>🕸️ Espía Web Pro</h4>
-            <p>Pega una URL. El sistema extraerá el título y los primeros 20 enlaces (con su texto) que encuentre en la página. Útil para mapear competidores.</p>
+            <h4>🕸️ Agente Rastreador Web</h4>
+            <p>Pega una URL y escribe qué quieres buscar ("precios", "fechas", "enlaces"). El agente limpiará la página de menús y extraerá exactamente lo que le pediste usando expresiones regulares.</p>
             
-            <h4>🧠 IA Predictiva</h4>
-            <p>Ingresa 3 valores (del 0.1 al 1.0): nivel de ingresos, nivel de deuda y antigüedad laboral. La red neuronal (con 3 variables y 4 neuronas ocultas) te dirá el riesgo real.</p>
+            <h4>🧠 IA Predictiva Deep</h4>
+            <p>Ingresa 3 valores. La red neuronal (con 3 capas ocultas y backpropagation) te dirá el riesgo real.</p>
             
             <button class="close-btn" onclick="cerrarAyuda()">Entendido</button>
         </div>
@@ -210,12 +211,13 @@
 
         async function hacerScraping() {
             const url = document.getElementById('urlScraping').value;
-            document.getElementById('consola').innerText = "> Escaneando Web Completa...";
+            const objetivo = document.getElementById('objetivoScraping').value || "enlaces";
+            document.getElementById('consola').innerText = `> Agente buscando "${objetivo}" en ${url}...`;
             try {
-                const res = await fetch('/web/scraping', {
+                const res = await fetch('/web/agente', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tokenGuardado}` },
-                    body: JSON.stringify({ url: url })
+                    body: JSON.stringify({ url: url, objetivo: objetivo })
                 });
                 const datos = await res.json();
                 imprimirConsola(JSON.stringify(datos, null, 4), !res.ok);
@@ -227,7 +229,7 @@
             const deuda = parseFloat(document.getElementById('iaDeuda').value);
             const antiguedad = parseFloat(document.getElementById('iaAntiguedad').value);
             if ([ingresos, deuda, antiguedad].some(isNaN)) return imprimirConsola("Ingresa números válidos.", true);
-            document.getElementById('consola').innerText = "> Red Neuronal procesando 3 variables...";
+            document.getElementById('consola').innerText = "> Red Neuronal profunda procesando...";
             try {
                 const res = await fetch('/ia/predecir', {
                     method: 'POST',
