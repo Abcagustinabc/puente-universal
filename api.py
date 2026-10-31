@@ -2,6 +2,8 @@ import os
 import sqlite3
 import pandas as pd
 import requests
+import random
+import math
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status
 from fastapi.responses import FileResponse
@@ -13,7 +15,7 @@ from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 
-app = FastAPI(title="Puente Universal SaaS")
+app = FastAPI(title="Puente Universal SaaS con IA")
 
 # ==========================================
 # CONFIGURACIÓN DE SEGURIDAD Y BASE DE DATOS
@@ -30,7 +32,6 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# ⚠️ AQUÍ ESTÁ EL CAMBIO: Usamos pbkdf2_sha256 en lugar de bcrypt
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
@@ -110,7 +111,7 @@ def raiz():
     return FileResponse("index_puente.html")
 
 # ==========================================
-# MÓDULOS PROTEGIDOS
+# MÓDULOS PROTEGIDOS (Excel, SQL, Scraping)
 # ==========================================
 @app.post("/excel/leer")
 async def leer_excel(
@@ -158,6 +159,92 @@ def espiar_precio(
         soup = BeautifulSoup(respuesta.text, 'html.parser')
         titulo = soup.title.string if soup.title else "Sin título"
         return {"status": "éxito", "titulo_extraido": titulo.strip()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==========================================
+# NUEVO MÓDULO 5: CEREBRO DE IA (RED NEURONAL)
+# ==========================================
+class RedNeuronal:
+    def __init__(self):
+        self.pesos_ocultos = [[random.uniform(-1, 1) for _ in range(2)] for _ in range(3)]
+        self.pesos_salida = [random.uniform(-1, 1) for _ in range(3)]
+        self.sesgo_oculto = [random.uniform(-1, 1) for _ in range(3)]
+        self.sesgo_salida = random.uniform(-1, 1)
+
+    def sigmoide(self, x):
+        if x < -500: return 0
+        if x > 500: return 1
+        return 1 / (1 + math.exp(-x))
+
+    def derivada_sigmoide(self, x):
+        return x * (1 - x)
+
+    def predecir(self, entradas):
+        capa_oculta = []
+        for i in range(3):
+            suma = sum(entradas[j] * self.pesos_ocultos[i][j] for j in range(2)) + self.sesgo_oculto[i]
+            capa_oculta.append(self.sigmoide(suma))
+        suma_salida = sum(capa_oculta[i] * self.pesos_salida[i] for i in range(3)) + self.sesgo_salida
+        salida = self.sigmoide(suma_salida)
+        return salida, capa_oculta
+
+    def entrenar(self, entradas, objetivo):
+        salida, capa_oculta = self.predecir(entradas)
+        error = objetivo - salida
+        delta_salida = error * self.derivada_sigmoide(salida)
+        
+        delta_oculto = []
+        for i in range(3):
+            error_oculto = delta_salida * self.pesos_salida[i]
+            delta_oculto.append(error_oculto * self.derivada_sigmoide(capa_oculta[i]))
+
+        for i in range(3):
+            self.pesos_salida[i] += 0.1 * delta_salida * capa_oculta[i]
+        self.sesgo_salida += 0.1 * delta_salida
+
+        for i in range(3):
+            for j in range(2):
+                self.pesos_ocultos[i][j] += 0.1 * delta_oculto[i] * entradas[j]
+            self.sesgo_oculto[i] += 0.1 * delta_oculto[i]
+
+red_ia = RedNeuronal()
+datos_entrenamiento = [
+    ([0.9, 0.1], 1), ([0.8, 0.2], 1), ([0.2, 0.8], 0),
+    ([0.1, 0.9], 0), ([0.6, 0.4], 1), ([0.3, 0.7], 0),
+]
+for _ in range(1000):
+    for entradas, objetivo in datos_entrenamiento:
+        red_ia.entrenar(entradas, objetivo)
+
+class PeticionPrediccion(BaseModel):
+    ingresos: float
+    deuda: float
+
+@app.post("/ia/predecir")
+def predecir_riesgo(
+    peticion: PeticionPrediccion,
+    usuario_actual: UsuarioDB = Depends(obtener_usuario_actual)
+):
+    try:
+        if not (0 <= peticion.ingresos <= 1) or not (0 <= peticion.deuda <= 1):
+            raise HTTPException(status_code=400, detail="Ingresos y deuda deben estar entre 0 y 1.")
+        
+        prediccion, _ = red_ia.predecir([peticion.ingresos, peticion.deuda])
+        
+        if prediccion > 0.7:
+            decision = "APROBADO (Cliente Seguro)"
+        elif prediccion < 0.3:
+            decision = "RECHAZADO (Alto Riesgo)"
+        else:
+            decision = "REVISIÓN MANUAL (Riesgo Medio)"
+            
+        return {
+            "status": "éxito", 
+            "decision": decision,
+            "confianza": round(prediccion, 4),
+            "mensaje": f"La red neuronal calculó un riesgo del {prediccion*100:.1f}%"
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

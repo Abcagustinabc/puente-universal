@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>El Puente Universal - SaaS</title>
+    <title>El Puente Universal - SaaS con IA</title>
     <style>
-        :root { --bg: #0f172a; --panel: #1e293b; --primary: #3b82f6; --success: #10b981; --text: #f8fafc; --muted: #94a3b8; }
+        :root { --bg: #0f172a; --panel: #1e293b; --primary: #3b82f6; --success: #10b981; --text: #f8fafc; --muted: #94a3b8; --ia: #8b5cf6; }
         body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         .header { text-align: center; margin-bottom: 30px; }
         .header h1 { color: var(--primary); margin-bottom: 5px; }
         
-        /* Estilos de la pantalla de Login */
         .login-container { background-color: var(--panel); padding: 40px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); width: 100%; max-width: 400px; }
         .tabs { display: flex; margin-bottom: 20px; }
         .tab { flex: 1; text-align: center; padding: 10px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--muted); }
@@ -22,7 +21,6 @@
         .oculto { display: none !important; }
         #mensaje { text-align: center; margin-top: 15px; font-size: 14px; font-weight: bold; }
 
-        /* Estilos del Dashboard */
         .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; width: 100%; max-width: 1000px; }
         .card { background-color: var(--panel); padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; flex-direction: column; }
         .card h3 { margin-top: 0; color: var(--text); border-bottom: 1px solid #334155; padding-bottom: 10px; }
@@ -33,7 +31,6 @@
 </head>
 <body>
 
-    <!-- PANTALLA DE LOGIN -->
     <div id="pantalla-login" class="login-container">
         <h1 style="text-align:center; color:var(--primary);">🌉 Puente Universal</h1>
         <div class="tabs">
@@ -55,7 +52,6 @@
         <div id="mensaje"></div>
     </div>
 
-    <!-- DASHBOARD (Oculto al principio) -->
     <div id="pantalla-dashboard" class="oculto" style="width:100%; display:flex; flex-direction:column; align-items:center;">
         <div class="header">
             <h1>🌉 El Puente Universal</h1>
@@ -84,16 +80,23 @@
                 <input type="text" id="urlScraping" value="https://github.com">
                 <button onclick="hacerScraping()">Analizar URL</button>
             </div>
+
+            <!-- NUEVO MÓDULO IA -->
+            <div class="card" style="border: 2px solid var(--ia);">
+                <h3 style="color: var(--ia);">🧠 Predicción de Riesgo (IA)</h3>
+                <p>Usa nuestra red neuronal para predecir si un cliente es seguro.</p>
+                <input type="number" id="iaIngresos" placeholder="Ingresos (0.1 a 1.0)" step="0.1" min="0" max="1" value="0.8">
+                <input type="number" id="iaDeuda" placeholder="Deuda (0.1 a 1.0)" step="0.1" min="0" max="1" value="0.2">
+                <button style="background-color: var(--ia);" onclick="predecirIA()">Analizar con IA</button>
+            </div>
         </div>
         <div id="consola">> Esperando comandos...</div>
     </div>
 
     <script>
-        // Variable global para guardar el Token
         let tokenGuardado = localStorage.getItem("token");
         let emailGuardado = localStorage.getItem("email");
 
-        // Si ya hay un token guardado, mostramos el Dashboard directamente
         window.onload = () => {
             if (tokenGuardado) {
                 mostrarDashboard(emailGuardado);
@@ -153,7 +156,6 @@
 
             mostrarMensaje('Verificando...');
             
-            // FastAPI OAuth2 espera los datos como formulario, no JSON
             const formData = new URLSearchParams();
             formData.append('username', email);
             formData.append('password', password);
@@ -167,7 +169,6 @@
                 const datos = await res.json();
                 
                 if (res.ok) {
-                    // Guardamos el token y el email en el navegador
                     localStorage.setItem("token", datos.access_token);
                     localStorage.setItem("email", email);
                     tokenGuardado = datos.access_token;
@@ -191,9 +192,6 @@
             mostrarMensaje('');
         }
 
-        // ==========================================
-        // FUNCIONES DE LOS MÓDULOS (Envían el Token)
-        // ==========================================
         function imprimirConsola(texto, esError = false) {
             const consola = document.getElementById('consola');
             consola.innerText = esError ? `> ❌ ERROR:\n\n${texto}` : `> ✅ ÉXITO:\n\n${texto}`;
@@ -211,7 +209,7 @@
                 const res = await fetch('/excel/leer', { 
                     method: 'POST', 
                     body: formData,
-                    headers: { 'Authorization': `Bearer ${tokenGuardado}` } // Enviamos el token
+                    headers: { 'Authorization': `Bearer ${tokenGuardado}` }
                 });
                 const datos = await res.json();
                 imprimirConsola(JSON.stringify(datos, null, 4), !res.ok);
@@ -226,7 +224,7 @@
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${tokenGuardado}` // Enviamos el token
+                        'Authorization': `Bearer ${tokenGuardado}`
                     },
                     body: JSON.stringify({ consulta: query })
                 });
@@ -243,9 +241,32 @@
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${tokenGuardado}` // Enviamos el token
+                        'Authorization': `Bearer ${tokenGuardado}`
                     },
                     body: JSON.stringify({ url: url })
+                });
+                const datos = await res.json();
+                imprimirConsola(JSON.stringify(datos, null, 4), !res.ok);
+            } catch (e) { imprimirConsola(e.message, true); }
+        }
+
+        async function predecirIA() {
+            const ingresos = parseFloat(document.getElementById('iaIngresos').value);
+            const deuda = parseFloat(document.getElementById('iaDeuda').value);
+            
+            if (isNaN(ingresos) || isNaN(deuda) || ingresos < 0 || ingresos > 1 || deuda < 0 || deuda > 1) {
+                return imprimirConsola("Por favor, ingresa números entre 0 y 1.", true);
+            }
+
+            document.getElementById('consola').innerText = "> La red neuronal está pensando...";
+            try {
+                const res = await fetch('/ia/predecir', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${tokenGuardado}`
+                    },
+                    body: JSON.stringify({ ingresos, deuda })
                 });
                 const datos = await res.json();
                 imprimirConsola(JSON.stringify(datos, null, 4), !res.ok);
