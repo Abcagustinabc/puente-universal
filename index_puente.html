@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Puente Universal - Agente Autónomo</title>
+    <title>Puente Universal - Cazador</title>
     <style>
         :root { --bg: #0f172a; --panel: #1e293b; --primary: #3b82f6; --success: #10b981; --text: #f8fafc; --muted: #94a3b8; --ia: #8b5cf6; }
         body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
@@ -40,7 +40,7 @@
 <body>
 
     <div id="pantalla-login" class="login-container">
-        <h1 style="text-align:center; color:var(--primary);">🌉 Agente Universal</h1>
+        <h1 style="text-align:center; color:var(--primary);">🌉 Cazador Universal</h1>
         <div class="tabs">
             <div class="tab active" onclick="cambiarTab('login')">Iniciar Sesión</div>
             <div class="tab" onclick="cambiarTab('registro')">Registrarse</div>
@@ -60,7 +60,7 @@
 
     <div id="pantalla-dashboard" class="oculto" style="width:100%; display:flex; flex-direction:column; align-items:center;">
         <div class="header">
-            <h1>🌉 Agente Autónomo Enterprise</h1>
+            <h1>🌉 Cazador de Ofertas Universal</h1>
             <p>Bienvenido, <span id="userEmail" style="color:var(--success);"></span></p>
             <button class="btn-help" onclick="mostrarAyuda()">❓ Guía de Uso</button>
             <button class="btn-logout" onclick="cerrarSesion()">Cerrar Sesión</button>
@@ -74,12 +74,11 @@
                 <button onclick="subirExcel()">Analizar Datos</button>
             </div>
 
-            <div class="card">
-                <h3>🕸️ Agente Rastreador Web</h3>
-                <p>Dile qué buscar y él extraerá los datos exactos.</p>
-                <input type="text" id="urlScraping" value="https://www.mercadolibre.com.mx">
-                <input type="text" id="objetivoScraping" placeholder="Ej: precios, fechas, enlaces...">
-                <button onclick="hacerScraping()">Ejecutar Agente</button>
+            <div class="card" style="border: 2px solid var(--primary);">
+                <h3 style="color: var(--primary);">🎯 El Cazador de Ofertas</h3>
+                <p>Dile qué buscas (ej. "televisor 50 pulgadas barato") y el agente lo buscará en Google, entrará a las tiendas y la IA extraerá el mejor precio.</p>
+                <input type="text" id="busquedaCazador" placeholder="Ej: televisor 50 pulgadas barato">
+                <button onclick="ejecutarCazador()">Cazar Oferta</button>
             </div>
 
             <div class="card" style="border: 2px solid var(--ia);">
@@ -96,16 +95,16 @@
 
     <div id="modalAyuda" class="modal">
         <div class="modal-content">
-            <h2>📖 Guía de Uso: Enterprise</h2>
+            <h2>📖 Guía de Uso: Cazador Universal</h2>
             
             <h4>📊 Excel Data Profiler</h4>
-            <p>Sube tu Excel. El sistema leerá <strong>todas las filas</strong>, calculará sumas, promedios, correlaciones entre columnas y detectará valores atípicos (anomalías).</p>
+            <p>Sube tu Excel. El sistema leerá <strong>todas las filas</strong>, calculará correlaciones y detectará valores atípicos.</p>
             
-            <h4>🕸️ Agente Rastreador Web</h4>
-            <p>Pega una URL y escribe qué quieres buscar ("precios", "fechas", "enlaces"). El agente limpiará la página de menús y extraerá exactamente lo que le pediste usando expresiones regulares.</p>
+            <h4>🎯 El Cazador de Ofertas</h4>
+            <p>Escribe lo que buscas (ej. "pantalla 50 pulgadas"). El agente buscará en Google, abrirá las tiendas con Playwright (navegador invisible) y usará Gemini para extraer el mejor precio.</p>
             
             <h4>🧠 IA Predictiva Deep</h4>
-            <p>Ingresa 3 valores. La red neuronal (con 3 capas ocultas y backpropagation) te dirá el riesgo real.</p>
+            <p>Red neuronal de 3 capas ocultas con backpropagation. Ingresa 3 valores y obtén el riesgo real.</p>
             
             <button class="close-btn" onclick="cerrarAyuda()">Entendido</button>
         </div>
@@ -209,15 +208,16 @@
             } catch (e) { imprimirConsola(e.message, true); }
         }
 
-        async function hacerScraping() {
-            const url = document.getElementById('urlScraping').value;
-            const objetivo = document.getElementById('objetivoScraping').value || "enlaces";
-            document.getElementById('consola').innerText = `> Agente buscando "${objetivo}" en ${url}...`;
+        async function ejecutarCazador() {
+            const busqueda = document.getElementById('busquedaCazador').value;
+            if (!busqueda) return imprimirConsola("Escribe qué quieres buscar.", true);
+            
+            document.getElementById('consola').innerText = `> El Cazador está buscando "${busqueda}"...\n> Abriendo navegadores invisibles...`;
             try {
-                const res = await fetch('/web/agente', {
+                const res = await fetch('/web/cazador', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tokenGuardado}` },
-                    body: JSON.stringify({ url: url, objetivo: objetivo })
+                    body: JSON.stringify({ busqueda: busqueda })
                 });
                 const datos = await res.json();
                 imprimirConsola(JSON.stringify(datos, null, 4), !res.ok);

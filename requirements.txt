@@ -12,3 +12,5 @@ python-jose[cryptography]
 numpy
 nltk
 lxml
+playwright
+google-genai

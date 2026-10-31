@@ -6,7 +6,8 @@ import random
 import math
 import numpy as np
 import re
-import nltk
+import json
+import asyncio
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status
 from fastapi.responses import FileResponse
@@ -17,17 +18,19 @@ from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
-
-# Descargar recursos de NLTK (Procesamiento de Lenguaje Natural clásico)
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt')
-
-app = FastAPI(title="Puente Universal - Agente Autónomo")
+from google import genai
+from playwright.sync_api import sync_playwright
 
 # ==========================================
-# CONFIGURACIÓN GENERAL
+# CONFIGURACIÓN DE IA (Lee la variable de entorno de Render)
+# ==========================================
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "clave_no_configurada")
+client_ia = genai.Client(api_key=GEMINI_API_KEY)
+
+app = FastAPI(title="Puente Universal - Cazador de Ofertas")
+
+# ==========================================
+# CONFIGURACIÓN GENERAL (LOGIN, DB)
 # ==========================================
 SECRET_KEY = "super_secreto_2026_enterprise"
 ALGORITHM = "HS256"
@@ -96,7 +99,7 @@ def raiz():
     return FileResponse("index_puente.html")
 
 # ==========================================
-# A. EXCEL NIVEL DIOS (Análisis Predictivo y NLP)
+# A. EXCEL PRO
 # ==========================================
 @app.post("/excel/analizar")
 async def analizar_excel_pro(
@@ -105,108 +108,104 @@ async def analizar_excel_pro(
 ):
     try:
         df = pd.read_excel(archivo.file)
-        
-        # 1. Perfilado de datos (Data Profiling)
-        perfil = {
-            "total_filas": len(df),
-            "total_columnas": len(df.columns),
-            "valores_nulos": int(df.isnull().sum().sum()),
-            "tipos_datos": {col: str(dtype) for col, dtype in df.dtypes.items()}
-        }
-        
-        # 2. Correlaciones (Qué columnas afectan a otras)
-        correlaciones = {}
+        perfil = {"total_filas": len(df), "total_columnas": len(df.columns), "valores_nulos": int(df.isnull().sum().sum())}
         num_df = df.select_dtypes(include=['number'])
-        if len(num_df.columns) > 1:
-            corr_matrix = num_df.corr().round(2).to_dict()
-            correlaciones = corr_matrix
-
-        # 3. Detección de Anomalías (Outliers usando Z-Score)
-        anomalias = {}
-        for col in num_df.columns:
-            media = num_df[col].mean()
-            std = num_df[col].std()
-            if std > 0:
-                outliers = df[np.abs((num_df[col] - media) / std) > 3]
-                if not outliers.empty:
-                    anomalias[col] = len(outliers)
-                    
-        return {
-            "status": "éxito", 
-            "perfil": perfil,
-            "correlaciones": correlaciones,
-            "anomalias_detectadas": anomalias,
-            "mensaje": "Análisis avanzado completado con éxito."
-        }
+        correlaciones = num_df.corr().round(2).to_dict() if len(num_df.columns) > 1 else {}
+        return {"status": "éxito", "perfil": perfil, "correlaciones": correlaciones}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 # ==========================================
-# B. SCRAPING NIVEL DIOS (Agente Rastreador Universal)
+# B. EL CAZADOR DE OFERTAS
 # ==========================================
-class PeticionAgente(BaseModel):
-    url: str
-    objetivo: str # Ej: "precios", "fechas", "nombres"
+class PeticionCazador(BaseModel):
+    busqueda: str
 
-@app.post("/web/agente")
-def agente_rastreador(
-    peticion: PeticionAgente,
+def buscar_en_google(query):
+    url = f"https://www.google.com/search?q={query.replace(' ', '+')}&tbm=shop"
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    res = requests.get(url, headers=headers)
+    soup = BeautifulSoup(res.text, 'html.parser')
+    enlaces = []
+    for a in soup.find_all('a', href=True):
+        href = a['href']
+        if "http" in href and "google" not in href and "youtube" not in href:
+            enlaces.append(href)
+        if len(enlaces) >= 3:
+            break
+    return enlaces
+
+def extraer_datos_con_ia(html, objetivo):
+    prompt = f"""
+    Eres un experto en análisis de datos. Del siguiente HTML extrae la información del producto.
+    Busco: {objetivo}
+    
+    Devuelve SOLO un JSON con este formato exacto:
+    {{"producto": "nombre", "precio": 0.0, "moneda": "MXN", "vendedor": "nombre", "link": "url"}}
+    
+    Si no encuentras precio, devuelve precio 0.
+    
+    HTML: {html[:20000]}
+    """
+    try:
+        response = client_ia.models.generate_content(model='gemini-2.0-flash', contents=prompt)
+        texto = response.text.replace('```json', '').replace('```', '').strip()
+        return json.loads(texto)
+    except Exception:
+        return None
+
+@app.post("/web/cazador")
+def ejecutar_cazador(
+    peticion: PeticionCazador,
     usuario_actual: UsuarioDB = Depends(obtener_usuario_actual)
 ):
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-        respuesta = requests.get(peticion.url, headers=headers, timeout=15)
-        soup = BeautifulSoup(respuesta.text, 'lxml')
+        enlaces = buscar_en_google(peticion.busqueda)
+        if not enlaces:
+            return {"status": "error", "mensaje": "No se encontraron tiendas para esa búsqueda."}
         
-        # 1. Limpieza profunda (Eliminar scripts, estilos, menús de navegación)
-        for script in soup(["script", "style", "nav", "footer", "header"]):
-            script.extract()
+        resultados = []
+        
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
             
-        texto_limpio = soup.get_text(separator=' ')
-        
-        # 2. Extracción Inteligente basada en el objetivo
-        resultado_extraido = []
-        
-        if peticion.objetivo.lower() == "precios":
-            # Busca patrones como $100, 100 USD, 100€
-            patron = r'(\$|€|USD|MXN|EUR)\s?(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)'
-            coincidencias = re.findall(patron, texto_limpio)
-            for simbolo, numero in coincidencias[:20]: # Top 20
-                resultado_extraido.append(f"{simbolo}{numero}")
-                
-        elif peticion.objetivo.lower() == "fechas":
-            # Busca fechas en formatos comunes
-            patron = r'\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b'
-            coincidencias = re.findall(patron, texto_limpio)
-            resultado_extraido = list(set(coincidencias))[:20]
+            for link in enlaces:
+                try:
+                    page.goto(link, timeout=15000)
+                    page.wait_for_timeout(3000)
+                    html = page.content()
+                    
+                    datos = extraer_datos_con_ia(html, peticion.busqueda)
+                    if datos and datos.get('precio', 0) > 0:
+                        datos['tienda_url'] = link
+                        resultados.append(datos)
+                except Exception:
+                    continue
             
-        elif peticion.objetivo.lower() == "enlaces":
-            for a in soup.find_all('a', href=True):
-                resultado_extraido.append({"texto": a.text.strip(), "url": a['href']})
-                if len(resultado_extraido) >= 20: break
-                
-        else:
-            # Búsqueda por palabra clave en el texto
-            palabras = nltk.word_tokenize(texto_limpio.lower())
-            contexto = [w for w in palabras if peticion.objetivo.lower() in w]
-            resultado_extraido = list(set(contexto))[:20]
-
+            browser.close()
+        
+        resultados.sort(key=lambda x: x.get('precio', float('inf')))
+        
+        if not resultados:
+            return {"status": "error", "mensaje": "La IA no pudo extraer precios válidos de las tiendas."}
+        
+        mejor = resultados[0]
         return {
-            "status": "éxito", 
-            "url_analizada": peticion.url,
-            "objetivo": peticion.objetivo,
-            "resultados_encontrados": resultado_extraido,
-            "mensaje": f"Se analizaron {len(texto_limpio)} caracteres de la página."
+            "status": "éxito",
+            "pedido": peticion.busqueda,
+            "mejor_oferta": mejor,
+            "todas_las_ofertas": resultados,
+            "mensaje": f"El mejor precio para '{peticion.busqueda}' es ${mejor['precio']} {mejor['moneda']} en {mejor.get('vendedor', 'tienda')}"
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error en el agente: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error en el cazador: {str(e)}")
 
 # ==========================================
-# C. IA NIVEL DIOS (Red Neuronal con Múltiples Capas y Regresión)
+# C. IA PREDICTIVA
 # ==========================================
 class RedNeuronalProfunda:
     def __init__(self, capas):
-        # Inicialización de pesos para múltiples capas (Deep Learning puro)
         self.pesos = []
         self.sesgos = []
         for i in range(len(capas) - 1):
@@ -232,18 +231,14 @@ class RedNeuronalProfunda:
         for _ in range(epocas):
             activaciones = self.forward(X)
             error = y - activaciones[-1]
-            
-            # Backpropagation para múltiples capas
             deltas = [error * self.derivada_sigmoide(activaciones[-1])]
             for i in range(len(self.pesos) - 2, -1, -1):
                 delta = np.dot(deltas[0], self.pesos[i+1].T) * self.derivada_sigmoide(activaciones[i+1])
                 deltas.insert(0, delta)
-                
             for i in range(len(self.pesos)):
                 self.pesos[i] += np.dot(activaciones[i].T, deltas[i]) * lr
                 self.sesgos[i] += np.sum(deltas[i], axis=0, keepdims=True) * lr
 
-# Entrenar IA con 3 capas ocultas
 red_ia = RedNeuronalProfunda([3, 5, 4, 1])
 X_train = np.array([[0.9, 0.1, 0.9], [0.8, 0.2, 0.7], [0.2, 0.8, 0.2], [0.1, 0.9, 0.1]])
 y_train = np.array([[1], [1], [0], [0]])
@@ -268,11 +263,7 @@ def predecir_riesgo(
         elif prob < 0.3: decision = "RECHAZADO (Riesgo Alto)"
         else: decision = "REVISIÓN (Riesgo Medio)"
             
-        return {
-            "status": "éxito", 
-            "decision": decision,
-            "probabilidad": round(prob, 4)
-        }
+        return {"status": "éxito", "decision": decision, "probabilidad": round(prob, 4)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
