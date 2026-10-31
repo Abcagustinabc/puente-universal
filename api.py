@@ -8,6 +8,7 @@ import numpy as np
 import re
 import json
 import asyncio
+import subprocess
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status
 from fastapi.responses import FileResponse
@@ -20,6 +21,15 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from google import genai
 from playwright.sync_api import sync_playwright
+
+# ==========================================
+# FORZAR INSTALACIÓN DE CHROMIUM EN RENDER
+# ==========================================
+# Esto descarga el navegador al iniciar el servidor (tarda unos segundos la primera vez)
+try:
+    subprocess.run(["playwright", "install", "chromium"], check=False, timeout=60)
+except Exception:
+    pass # Si falla, no detenemos la app, solo el Cazador fallará.
 
 # ==========================================
 # CONFIGURACIÓN DE IA Y BÚSQUEDA
@@ -123,7 +133,7 @@ class PeticionCazador(BaseModel):
     busqueda: str
 
 def buscar_con_serper(query):
-    """Busca en Google usando la API de Serper (resultados limpios y sin bloqueos)."""
+    """Busca en Google usando la API de Serper."""
     url = "https://google.serper.dev/search"
     payload = json.dumps({"q": query + " comprar"})
     headers = {
@@ -141,7 +151,7 @@ def buscar_con_serper(query):
             if len(enlaces) >= 3:
                 break
         return enlaces
-    except Exception as e:
+    except Exception:
         return []
 
 def extraer_datos_con_ia(html, objetivo):
@@ -169,34 +179,35 @@ def ejecutar_cazador(
     usuario_actual: UsuarioDB = Depends(obtener_usuario_actual)
 ):
     try:
-        # 1. Buscar con Serper (Google)
         enlaces = buscar_con_serper(peticion.busqueda)
         if not enlaces:
             return {"status": "error", "mensaje": "No se encontraron tiendas. Verifica tu API Key de Serper."}
         
         resultados = []
         
-        # 2. Usar Playwright para abrir cada tienda
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
-            
-            for link in enlaces:
-                try:
-                    page.goto(link, timeout=20000)
-                    page.wait_for_timeout(3000)
-                    html = page.content()
-                    
-                    datos = extraer_datos_con_ia(html, peticion.busqueda)
-                    if datos and datos.get('precio', 0) > 0:
-                        datos['tienda_url'] = link
-                        resultados.append(datos)
-                except Exception:
-                    continue
-            
-            browser.close()
+        # Intentar abrir el navegador. Si falla, avisamos claramente.
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page()
+                
+                for link in enlaces:
+                    try:
+                        page.goto(link, timeout=20000)
+                        page.wait_for_timeout(3000)
+                        html = page.content()
+                        
+                        datos = extraer_datos_con_ia(html, peticion.busqueda)
+                        if datos and datos.get('precio', 0) > 0:
+                            datos['tienda_url'] = link
+                            resultados.append(datos)
+                    except Exception:
+                        continue
+                
+                browser.close()
+        except Exception as e:
+            return {"status": "error", "mensaje": f"El navegador no está listo. Reintenta en 1 minuto. Detalle: {str(e)}"}
         
-        # 3. Ordenar por precio
         resultados.sort(key=lambda x: x.get('precio', float('inf')))
         
         if not resultados:
@@ -214,7 +225,7 @@ def ejecutar_cazador(
         raise HTTPException(status_code=500, detail=f"Error en el cazador: {str(e)}")
 
 # ==========================================
-# C. IA PREDICTIVA
+# C. IA PREDICTIVA (Red Neuronal)
 # ==========================================
 class RedNeuronalProfunda:
     def __init__(self, capas):
