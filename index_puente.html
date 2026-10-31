@@ -26,11 +26,21 @@
         .card h3 { margin-top: 0; color: var(--text); border-bottom: 1px solid #334155; padding-bottom: 10px; }
         .card p { color: var(--muted); font-size: 0.9em; flex-grow: 1; }
         .btn-logout { background-color: #ef4444; color: white; width: auto; padding: 8px 16px; margin-top: 20px; }
+        .btn-help { background-color: #f59e0b; color: white; width: auto; padding: 8px 16px; margin-top: 10px; display: block; margin-left: auto; margin-right: auto;}
         #consola { width: 100%; max-width: 1000px; background-color: #000; color: var(--success); font-family: monospace; padding: 15px; border-radius: 10px; margin-top: 30px; min-height: 150px; box-sizing: border-box; white-space: pre-wrap; font-size: 14px; border: 1px solid #334155; }
+
+        /* Estilos del Modal de Ayuda */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); justify-content: center; align-items: center; }
+        .modal-content { background-color: var(--panel); padding: 30px; border-radius: 12px; width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto; border: 1px solid #334155; }
+        .modal-content h2 { color: var(--primary); margin-top: 0; }
+        .modal-content h4 { color: var(--success); margin-bottom: 5px; }
+        .modal-content p { font-size: 0.95em; line-height: 1.5; color: #cbd5e1; margin-top: 0; }
+        .close-btn { background-color: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; display: block; margin: 20px auto 0; width: 100px; }
     </style>
 </head>
 <body>
 
+    <!-- PANTALLA DE LOGIN -->
     <div id="pantalla-login" class="login-container">
         <h1 style="text-align:center; color:var(--primary);">🌉 Puente Universal</h1>
         <div class="tabs">
@@ -52,10 +62,12 @@
         <div id="mensaje"></div>
     </div>
 
+    <!-- PANTALLA DEL DASHBOARD -->
     <div id="pantalla-dashboard" class="oculto" style="width:100%; display:flex; flex-direction:column; align-items:center;">
         <div class="header">
             <h1>🌉 El Puente Universal</h1>
             <p>Bienvenido, <span id="userEmail" style="color:var(--success);"></span></p>
+            <button class="btn-help" onclick="mostrarAyuda()">❓ Guía de Uso</button>
             <button class="btn-logout" onclick="cerrarSesion()">Cerrar Sesión</button>
         </div>
 
@@ -81,7 +93,6 @@
                 <button onclick="hacerScraping()">Analizar URL</button>
             </div>
 
-            <!-- NUEVO MÓDULO IA -->
             <div class="card" style="border: 2px solid var(--ia);">
                 <h3 style="color: var(--ia);">🧠 Predicción de Riesgo (IA)</h3>
                 <p>Usa nuestra red neuronal para predecir si un cliente es seguro.</p>
@@ -91,6 +102,28 @@
             </div>
         </div>
         <div id="consola">> Esperando comandos...</div>
+    </div>
+
+    <!-- MODAL DE AYUDA -->
+    <div id="modalAyuda" class="modal">
+        <div class="modal-content">
+            <h2>📖 Guía de Uso: El Puente Universal</h2>
+            <p>Bienvenido a tu centro de automatización. Aquí tienes la explicación de cada módulo:</p>
+            
+            <h4>📊 Analizador Excel</h4>
+            <p>Sube cualquier archivo de Excel (.xlsx) de tu computadora. El sistema extraerá las primeras 10 filas y te mostrará los datos para que compruebes que se pueden leer correctamente.</p>
+            
+            <h4>🗄️ Consulta SQL</h4>
+            <p>Permite consultar bases de datos usando comandos SQL. <strong>Nota de seguridad:</strong> Por protección, solo se permiten comandos de lectura (SELECT). Prueba con el que viene por defecto.</p>
+            
+            <h4>🕸️ Espía Web (Scraping)</h4>
+            <p>Pega la URL de cualquier página web (ej. una tienda). El sistema extraerá el título principal de esa página. Ideal para monitorear competidores.</p>
+            
+            <h4>🧠 Predicción de Riesgo (IA)</h4>
+            <p>Usa una red neuronal matemática creada desde cero. Ingresa el nivel de ingresos y deuda de un cliente (del 0.1 al 1.0) y la IA te dirá si es un cliente seguro o de alto riesgo.</p>
+            
+            <button class="close-btn" onclick="cerrarAyuda()">Entendido</button>
+        </div>
     </div>
 
     <script>
@@ -122,6 +155,14 @@
             document.getElementById('pantalla-login').classList.add('oculto');
             document.getElementById('pantalla-dashboard').classList.remove('oculto');
             document.getElementById('userEmail').innerText = email;
+        }
+
+        // Funciones del Modal de Ayuda
+        function mostrarAyuda() {
+            document.getElementById('modalAyuda').style.display = 'flex';
+        }
+        function cerrarAyuda() {
+            document.getElementById('modalAyuda').style.display = 'none';
         }
 
         async function hacerRegistro() {
