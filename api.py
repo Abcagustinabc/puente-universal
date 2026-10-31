@@ -7,8 +7,6 @@ import math
 import numpy as np
 import re
 import json
-import asyncio
-import subprocess
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status
 from fastapi.responses import FileResponse
@@ -23,17 +21,8 @@ from google import genai
 from playwright.sync_api import sync_playwright
 
 # ==========================================
-# FORZAR INSTALACIÓN DE CHROMIUM EN RENDER
-# ==========================================
-try:
-    subprocess.run(["playwright", "install", "chromium"], check=False, timeout=60)
-except Exception:
-    pass
-
-# ==========================================
 # CONFIGURACIÓN DE VARIABLES DE ENTORNO
 # ==========================================
-# La llave secreta ahora viene de Render (o usa una por defecto fija)
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "llave_super_secreta_fija_2026_enterprise")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "clave_no_configurada")
 SERPER_API_KEY = os.getenv("SERPER_API_KEY", "clave_no_configurada")

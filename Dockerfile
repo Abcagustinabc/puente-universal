@@ -1,19 +1,15 @@
-FROM python:3.11-slim
+# Usamos una imagen oficial de Playwright para Python que ya trae todo lo necesario
+FROM mcr.microsoft.com/playwright/python:v1.49.0-jammy
 
-# Instalar dependencias del sistema que necesita Chromium
-RUN apt-get update && \
-    apt-get install -y wget gnupg curl libnss3 libatk-bridge2.0-0 libxkbcommon0 libgtk-3-0 libasound2 libgbm1 && \
-    rm -rf /var/lib/apt/lists/*
+# Directorio de trabajo
+WORKDIR /app
 
-# Copiar requirements e instalar
+# Copiar e instalar dependencias de Python
 COPY requirements.txt .
-RUN pip install --upgrade pip && pip install -r requirements.txt
-
-# Instalar el navegador de Playwright DENTRO de la imagen
-RUN playwright install chromium
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiar el resto del código
 COPY . .
 
-# Comando de inicio
+# Comando para arrancar la app (Render usa el puerto 10000 por defecto)
 CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "10000"]
